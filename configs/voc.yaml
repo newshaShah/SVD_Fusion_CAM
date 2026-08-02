@@ -1,0 +1,23 @@
+# PASCAL VOC 2012 evaluation configuration.
+# Layers and hyperparameters are those selected on the training split
+# (see the paper, Table 2). Paths assume scripts/download_data.sh was run;
+# edit them to point at your local copies.
+
+dataset: voc
+
+model_path: models/efficientnet_voc.h5
+voc_root: data/VOCdevkit/VOC2012
+split_file: data/VOCdevkit/VOC2012/ImageSets/Main/val.txt
+
+image_size: [224, 224]          # EfficientNet-B0 input
+
+# Fusion configuration: one mid-resolution level and the deepest level.
+layers:
+  - block3b_project_conv        # 28 x 28
+  - top_conv                    # 7 x 7
+deepest_layer: top_conv
+
+rank_k: 1
+fusion_scheme: depth            # 0.33 / 0.67
+
+output_csv: results/raw_voc.csv

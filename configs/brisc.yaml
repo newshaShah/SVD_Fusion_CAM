@@ -1,0 +1,23 @@
+# BRISC 2025 evaluation configuration.
+# Layers and hyperparameters are those selected on the training split
+# (see the paper, Table 2). Paths assume scripts/download_data.sh was run;
+# edit them to point at your local copies.
+
+dataset: brisc
+
+model_path: models/efficientnet_brisc.keras
+images_dir: data/BRISC/brisc2025/segmentation_task/test/images
+masks_dir: data/BRISC/brisc2025/segmentation_task/test/masks
+
+image_size: [240, 240]          # EfficientNet-B1 input
+
+# Fusion configuration: one mid-resolution level and the deepest level.
+layers:
+  - block3c_project_conv        # 30 x 30
+  - top_conv                    # 8 x 8
+deepest_layer: top_conv
+
+rank_k: 3
+fusion_scheme: uniform          # 0.50 / 0.50
+
+output_csv: results/raw_brisc.csv
