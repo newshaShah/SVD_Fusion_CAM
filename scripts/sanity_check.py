@@ -1,6 +1,6 @@
 """Cascading weight randomisation (sanity check).
 
-Reproduces the sanity table of the paper (Sec. 4.7). Weights are randomised
+Reproduces the sanity table of the paper (Table 12, Sec. 4.7). Weights are randomised
 from the classifier head backwards, one stage at a time and cumulatively, and
 each method's map is compared against the map from the trained model by rank
 correlation. A method whose correlation stays high once the classifier can no
@@ -79,6 +79,20 @@ def randomise(model, layer_names):
         layer.set_weights(fresh)
 
 
+def _check_identical(extractor, copy_extractor, samples, tol=1e-5):
+    """Raise if the untouched copy does not reproduce the trained model."""
+    if not samples:
+        raise RuntimeError("no usable images for the sanity check")
+    sample = next(iter(samples.values()))
+    feats_a, _ = extractor(sample.model_input, sample.class_index)
+    feats_b, _ = copy_extractor(sample.model_input, sample.class_index)
+    diff = max(float(np.abs(a - b).max()) for a, b in zip(feats_a, feats_b))
+    print(f"  untouched copy, max feature difference: {diff:.2e}")
+    if diff > tol:
+        raise RuntimeError(
+            f"model copy differs from the trained model (max diff {diff:.2e})")
+
+
 def build_stages(model, blocks):
     """Randomisation stages, from the classifier head backwards."""
     names = [layer.name for layer in model.layers]
@@ -118,10 +132,12 @@ def _image_ids(config, per_class):
         return [line.strip() for line in fh if line.strip()][:3 * per_class]
 
 
-def run(config: dict, per_class: int, blocks) -> pd.DataFrame:
+def run(config: dict, per_class: int, blocks, seed: int | None = None) -> pd.DataFrame:
     image_size = tuple(config["image_size"])
     layers, deepest = config["layers"], config["deepest_layer"]
     is_brisc = config["dataset"] == "brisc"
+    if seed is not None:
+        tf.keras.utils.set_random_seed(seed)
 
     model = tf.keras.models.load_model(config["model_path"], compile=False)
     needed = list(dict.fromkeys(layers + [deepest]))
@@ -144,8 +160,13 @@ def run(config: dict, per_class: int, blocks) -> pd.DataFrame:
             feats, grads, extractor.layer_names, config, image_size)
         samples[image_id] = sample
 
-    randomised = tf.keras.models.clone_model(model)
-    randomised.set_weights(model.get_weights())
+    # The randomised copy is made by loading the model file a second time.
+    # tf.keras.models.clone_model + set_weights does not give an identical
+    # copy for this model (top_conv activations differed by up to ~20 before
+    # any weight was touched), which inflated the correlations of every
+    # method. Verify the copy before randomising anything.
+    randomised = tf.keras.models.load_model(config["model_path"], compile=False)
+    _check_identical(extractor, GradientExtractor(randomised, needed), samples)
 
     rows = []
     for stage_name, stage_layers in build_stages(model, blocks):
@@ -181,13 +202,17 @@ def main():
     parser.add_argument("--blocks", nargs="*",
                         default=["block7", "block6", "block5", "block4", "block3"],
                         help="convolutional block prefixes, deepest first")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="seed for the random weights; the paper's run "
+                             "was unseeded, so values can differ in the "
+                             "second or third decimal")
     parser.add_argument("--out-dir", default="results")
     args = parser.parse_args()
 
     with open(args.config) as fh:
         config = yaml.safe_load(fh)
 
-    table = run(config, args.per_class, args.blocks)
+    table = run(config, args.per_class, args.blocks, args.seed)
     os.makedirs(args.out_dir, exist_ok=True)
     out = f"{args.out_dir}/sanity_{config['dataset']}.csv"
     table.round(4).to_csv(out)

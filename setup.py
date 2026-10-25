@@ -5,8 +5,8 @@ from setuptools import find_packages, setup
 setup(
     name="svdfusion",
     version="1.0.0",
-    description="SVD-Fusion CAM: spectral gradient weighting with "
-                "resolution-aware fusion",
+    description="SVD-Fusion CAM: Hierarchical Robust Visual Explanations "
+                "via Singular Value Decomposition",
     author="Newsha Shahbodaghkhan",
     packages=find_packages(exclude=("scripts", "configs")),
     python_requires=">=3.9",

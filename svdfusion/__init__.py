@@ -1,4 +1,4 @@
-"""SVD-Fusion CAM: spectral gradient weighting with resolution-aware fusion.
+"""SVD-Fusion CAM: Hierarchical Robust Visual Explanations via SVD.
 
 A saliency-map method for convolutional networks. Instead of averaging each
 channel's gradient map into a scalar, it applies a singular value decomposition

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-بازتولیدِ شکلِ per-size از داده‌ی T3 — با legendِ درست (زیرِ نمودار، نه روی میله‌ها).
+Lift by target-size bin (appendix figure of the paper).
 
-ورودی:  T3_persize_VOC.csv , T3_persize_BRISC.csv
-خروجی:  FIG_per_size.pdf  (+ .png برای پیش‌نمایش)
+Input:  T3_persize_VOC.csv, T3_persize_BRISC.csv
+Output: FIG_per_size.pdf (and a .png preview)
 """
 
 import pandas as pd
@@ -12,13 +12,13 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-# ---- مسیرها (اگر لازم شد عوض کن) ----
+# ---- paths (edit if needed) ----
 VOC_CSV   = 'T3_persize_VOC.csv'
 BRISC_CSV = 'T3_persize_BRISC.csv'
 OUT_PDF   = 'FIG_per_size.pdf'
 OUT_PNG   = 'FIG_per_size.png'
 
-# ترتیبِ روش‌ها و برچسب‌های نمایشی
+# method order and display labels
 METHODS = [
     ('SVD-Fusion (multi-scale)', 'Ours (multi-scale)'),
     ('SVD-Fusion (single)',      'Ours (single layer)'),
@@ -61,7 +61,7 @@ def draw(ax, table, bins, title):
     ax.set_axisbelow(True)
     for side in ('top', 'right'):
         ax.spines[side].set_visible(False)
-    # فضای کمی بالای بلندترین میله
+    # a little headroom above the tallest bar
     ax.set_ylim(0, table.values.max() * 1.08)
 
 
@@ -74,7 +74,7 @@ def main():
     draw(axes[0], voc, BINS_VOC, 'PASCAL VOC 2012')
     draw(axes[1], brisc, BINS_BRISC, 'BRISC 2025')
 
-    # legendِ مشترک، *زیرِ* نمودار — روی هیچ میله‌ای نمی‌افتد
+    # shared legend below the plots, so it never covers a bar
     handles = [plt.Rectangle((0, 0), 1, 1, color=c) for c in COLORS]
     labels = [lab for _k, lab in METHODS]
     fig.legend(handles, labels, loc='lower center', ncol=5,
@@ -83,13 +83,13 @@ def main():
     fig.tight_layout(rect=[0, 0.09, 1, 1])
     fig.savefig(OUT_PDF, bbox_inches='tight')
     fig.savefig(OUT_PNG, dpi=150, bbox_inches='tight')
-    print(f'ساخته شد: {OUT_PDF} و {OUT_PNG}')
+    print(f'written: {OUT_PDF} and {OUT_PNG}')
 
-    # چکِ صحت: چند مقدارِ شاخص
-    print('\n[چکِ صحت]')
-    print(f"  VOC 0–5% ours(single): {voc.loc['SVD-Fusion (single)', '0–5%']:.2f} (باید ≈6.27)")
-    print(f"  VOC 10–20% Eigen:      {voc.loc['EigenCAM', '10–20%']:.2f} (باید ≈2.02 — قله‌ی شاخص)")
-    print(f"  BRISC 5–10% ours(single): {brisc.loc['SVD-Fusion (single)', '5–10%']:.2f} (باید ≈3.98)")
+    # spot check against a few known values
+    print('\n[spot check]')
+    print(f"  VOC 0–5% ours(single): {voc.loc['SVD-Fusion (single)', '0–5%']:.2f} (expected ≈6.27)")
+    print(f"  VOC 10–20% Eigen:      {voc.loc['EigenCAM', '10–20%']:.2f} (expected ≈2.02)")
+    print(f"  BRISC 5–10% ours(single): {brisc.loc['SVD-Fusion (single)', '5–10%']:.2f} (expected ≈3.98)")
 
 
 if __name__ == '__main__':

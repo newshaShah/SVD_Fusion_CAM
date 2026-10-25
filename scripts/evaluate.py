@@ -24,10 +24,7 @@ from tqdm import tqdm
 import tensorflow as tf
 
 from svdfusion import cams, fusion, metrics
-from svdfusion.data import (
-    VOC_CLASSES, load_brisc_sample, load_voc_sample, _brisc_class_token,
-    _BRISC_TOKENS,
-)
+from svdfusion.data import load_brisc_sample, load_voc_sample
 from svdfusion.gradients import GradientExtractor
 
 
@@ -64,6 +61,9 @@ def evaluate(config: dict) -> pd.DataFrame:
         image_ids = _brisc_image_ids(config["images_dir"])
     else:
         image_ids = _voc_image_ids(config["split_file"])
+    # The paper reports VOC on the first 1500 images of the val list.
+    if config.get("max_images"):
+        image_ids = image_ids[:config["max_images"]]
 
     rows = []
     for image_id in tqdm(image_ids, desc=config["dataset"]):

@@ -8,6 +8,9 @@ dataset: voc
 model_path: models/efficientnet_voc.h5
 voc_root: data/VOCdevkit/VOC2012
 split_file: data/VOCdevkit/VOC2012/ImageSets/Main/val.txt
+max_images: 1500                # first 1500 val images; 1401 remain after
+                                # dropping those without a box of the
+                                # predicted class
 
 image_size: [224, 224]          # EfficientNet-B0 input
 

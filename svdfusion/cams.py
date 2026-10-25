@@ -89,10 +89,12 @@ def xgrad_cam(feat: np.ndarray, grad: np.ndarray) -> np.ndarray:
     Axiom-based weighting: the gradient is normalised by the channel's activation
     mass. The derivation assumes non-negative activations; on networks with
     signed pre-activations (for example Swish) the normalising term can become
-    ill-conditioned. See the paper, Section 4.4.
+    ill-conditioned. See the paper, Section 4.4. Channels with zero activation
+    mass get zero weight, as in the implementation used for the paper.
     """
-    denom = feat.sum(axis=(0, 1)) + _EPS
-    weights = (grad * feat).sum(axis=(0, 1)) / denom
+    mass = feat.sum(axis=(0, 1))
+    safe = np.where(mass != 0, mass, 1.0)
+    weights = np.where(mass != 0, (grad * feat).sum(axis=(0, 1)) / safe, 0.0)
     return _relu_normalise((weights * feat).sum(axis=-1))
 
 

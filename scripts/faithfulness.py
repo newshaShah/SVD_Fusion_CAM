@@ -1,6 +1,6 @@
 """Deletion and insertion curves for every CAM method.
 
-Reproduces the faithfulness table of the paper (Sec. 4.7). Pixels are removed
+Reproduces the faithfulness table of the paper (Table 11, Sec. 4.7). Pixels are removed
 (deletion) or restored onto a blurred image (insertion) in order of the
 saliency ranking, and the class score is averaged over the sweep. Deletion is
 better when lower, insertion when higher.

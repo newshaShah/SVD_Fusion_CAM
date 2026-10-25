@@ -1,7 +1,8 @@
 """Rebuild the paper's summary tables from per-image results.
 
 Reads the tidy CSV written by ``evaluate.py`` and produces the localisation
-summary and the paired significance table. Numbers match the paper's Tables 1-6.
+summary (Tables 6 and 8), the paired significance tables (Table 7 and
+Table A.14) and the advantage by target size (Table 10).
 
 Usage
 -----
@@ -30,13 +31,14 @@ METHOD_ORDER = [
 
 
 def summary_table(results: pd.DataFrame) -> pd.DataFrame:
-    """Median EBPG and lift, mean PG and IoU per method."""
-    def q(s, p):
-        return np.percentile(s.dropna(), p)
-
+    """Median EBPG and lift with their quartiles, mean PG and IoU per method."""
     table = results.groupby("method").agg(
         EBPG_median=("ebpg", lambda s: 100 * s.median()),
+        EBPG_q1=("ebpg", lambda s: 100 * s.quantile(0.25)),
+        EBPG_q3=("ebpg", lambda s: 100 * s.quantile(0.75)),
         lift_median=("lift", "median"),
+        lift_q1=("lift", lambda s: s.quantile(0.25)),
+        lift_q3=("lift", lambda s: s.quantile(0.75)),
         PG=("pg", lambda s: 100 * s.mean()),
         IoU=("iou", lambda s: 100 * s.mean()),
         n=("ebpg", "count"),

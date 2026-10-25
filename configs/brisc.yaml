@@ -1,6 +1,6 @@
 # BRISC 2025 evaluation configuration.
 # Layers and hyperparameters are those selected on the training split
-# (see the paper, Table 2). Paths assume scripts/download_data.sh was run;
+# (see the paper, Table 2) by scripts/select_config.py. Paths assume scripts/download_data.sh was run;
 # edit them to point at your local copies.
 
 dataset: brisc
@@ -21,3 +21,23 @@ rank_k: 3
 fusion_scheme: uniform          # 0.50 / 0.50
 
 output_csv: results/raw_brisc.csv
+
+# Configuration search (scripts/select_config.py), run on the training part of
+# the segmentation split. These are the candidate level combinations used for
+# the paper; the last one is the earlier "last three layers" setting, kept for
+# comparison. Levels are 60x60, 30x30, 15x15 and 8x8.
+search:
+  images_dir: data/BRISC/brisc2025/segmentation_task/train/images
+  masks_dir: data/BRISC/brisc2025/segmentation_task/train/masks
+  k_values: [1, 2, 3]
+  combos:
+    "8":            [top_conv]
+    "15+8":         [block5d_project_conv, top_conv]
+    "30+8":         [block3c_project_conv, top_conv]
+    "60+8":         [block2c_project_conv, top_conv]
+    "30+15+8":      [block3c_project_conv, block5d_project_conv, top_conv]
+    "60+30+15+8":   [block2c_project_conv, block3c_project_conv, block5d_project_conv, top_conv]
+    "60+30+15":     [block2c_project_conv, block3c_project_conv, block5d_project_conv]
+    "30+15":        [block3c_project_conv, block5d_project_conv]
+    "60+30":        [block2c_project_conv, block3c_project_conv]
+    "OLD:8+8+8":    [block7a_project_conv, block7b_project_conv, top_conv]

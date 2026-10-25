@@ -1,12 +1,15 @@
-"""
-چکِ مستقلِ همه‌ی اعدادِ جدول‌های مقاله در برابرِ فایل‌های CSV.
+"""Check numbers printed in the paper against the result CSVs.
 
-این اسکریپت هیچ مدلی بار نمی‌کند و هیچ محاسبه‌ی جدیدی انجام نمی‌دهد؛
-فقط اعدادِ نوشته‌شده در مقاله را با فایل‌های خام مقایسه می‌کند.
+Loads no model and computes nothing new: it only compares the values written
+in the paper's tables with the raw CSV files of the original runs. It covers
+PG and IoU of Table 6, Table 8 (selected rows), the paired tables (Table 7 and
+Table A.14), the per-class table (Table 9), the size table (Table 10), the
+corrected sanity table (Table 12) and the runtime table (Table 13).
 
-اجرا:
-    python VERIFY_all_tables.py            # فایل‌ها در همین پوشه
-    python VERIFY_all_tables.py /path/to/csvs
+Usage
+-----
+    python -m scripts.verify_tables                 # CSVs in the current folder
+    python -m scripts.verify_tables /path/to/csvs
 """
 
 import sys
@@ -15,7 +18,7 @@ import pandas as pd
 
 DATA = sys.argv[1] if len(sys.argv) > 1 else "."
 
-# نامِ روش‌ها: چپ = مقاله، راست = CSV
+# Method names: left = paper, right = CSV
 NAME = {
     "SVD-Fusion CAM (multi-scale)": "SVD-Fusion (multi-scale)",
     "SVD-Fusion CAM (single layer)": "SVD-Fusion (single)",
@@ -63,9 +66,9 @@ def load(fname):
     return None
 
 
-# ---------------------------------------------------------------- Table 5
-def table5():
-    print("\nTable 5 — localisation, BRISC")
+# ---------------------------------------------------------------- Table 6
+def table6():
+    print("\nTable 6 — localisation, BRISC")
     d = load("T1_summary_BRISC__1_.csv")
     if d is None:
         return
@@ -90,9 +93,9 @@ def table5():
         report(m, good, f"PG {r['PG %']:.2f} vs {pg} | IoU {r['IoU %']:.2f} vs {iou}")
 
 
-# ---------------------------------------------------------------- Table 7
-def table7():
-    print("\nTable 7 — localisation, VOC")
+# ---------------------------------------------------------------- Table 8
+def table8():
+    print("\nTable 8 — localisation, VOC")
     d = load("T1_summary_VOC__1_.csv")
     if d is None:
         return
@@ -111,7 +114,7 @@ def table7():
         report(m, good, f"PG {r['PG %']:.2f} vs {pg} | IoU {r['IoU %']:.2f} vs {iou}")
 
 
-# ------------------------------------------------------------ Tables 6, 13
+# ------------------------------------------------------------ Tables 7, A.14
 def paired(fname, label, blocks):
     print(f"\n{label}")
     d = load(fname)
@@ -132,7 +135,7 @@ def paired(fname, label, blocks):
                    f"| p {r.p:.1e} vs {p:.1e}")
 
 
-TABLE6 = {
+TABLE7 = {
     "lift": [("SVD-Fusion CAM (single layer)", 59.5, 0.291, 1.6e-13),
              ("HiResCAM", 75.4, 0.622, 4.1e-56),
              ("Grad-CAM++", 75.2, 0.656, 3.3e-62),
@@ -159,7 +162,7 @@ TABLE6 = {
              ("Eigen-CAM", 66.5, 0.586, 7.4e-45)],
 }
 
-TABLE13 = {
+TABLE_A14 = {
     "lift": [("SVD-Fusion CAM (single layer)", 38.5, -0.234, 3.8e-14),
              ("HiResCAM", 82.5, 0.724, 1.4e-121),
              ("SVD-Grad-CAM", 86.1, 0.834, 4.3e-160),
@@ -187,9 +190,9 @@ TABLE13 = {
 }
 
 
-# ---------------------------------------------------------------- Table 8
-def table8():
-    print("\nTable 8 — per-class, BRISC")
+# ---------------------------------------------------------------- Table 9
+def table9():
+    print("\nTable 9 — per-class, BRISC")
     d = load("T4_perclass_BRISC__1_.csv")
     if d is None:
         return
@@ -231,9 +234,9 @@ def table8():
     print("    (cells at 8x8 = area% x 64, at 30x30 = area% x 900 — derived, not stored)")
 
 
-# ---------------------------------------------------------------- Table 9
-def table9():
-    print("\nTable 9 — advantage by target size")
+# ---------------------------------------------------------------- Table 10
+def table10():
+    print("\nTable 10 — advantage by target size")
     baselines = ["HiResCAM", "SVD-Grad-CAM", "Grad-CAM", "Grad-CAM++",
                  "LayerCAM", "XGrad-CAM", "EigenCAM"]
     paper = [("BRISC", "0–5%", 2.11, 1.82, 15.8),
@@ -261,7 +264,35 @@ def table9():
 
 # --------------------------------------------------------------- Table 12
 def table12():
-    print("\nTable 12 — runtime")
+    print("\nTable 12 — sanity check (corrected run)")
+    path = os.path.join(DATA, "final_sanity_check_FIXED.csv")
+    if not os.path.exists(path):
+        path = os.path.join(DATA, "sanity_brisc.csv")      # scripts/sanity_check.py
+    if not os.path.exists(path):
+        print(f"  [skip] no sanity CSV in {DATA}")
+        return
+    d = pd.read_csv(path, index_col=0).rename(columns={"EigenCAM": "Eigen-CAM"})
+    columns = ["SVD-Fusion CAM (proposed)", "SVD-Fusion CAM (single layer)",
+               "Grad-CAM", "Grad-CAM++", "HiResCAM", "LayerCAM", "Eigen-CAM",
+               "SVD-Grad-CAM", "XGrad-CAM"]
+    paper = {
+        "head":   [0.347, 0.384, 0.412, 0.693, 0.320, 0.926, 1.000, 0.409, 0.509],
+        "block6": [0.313, 0.347, 0.334, 0.443, 0.348, 0.684, 0.769, 0.338, 0.294],
+        "block3": [0.337, 0.330, 0.319, 0.452, 0.338, 0.704, 0.784, 0.320, 0.300],
+    }
+    for stage, values in paper.items():
+        for col, want in zip(columns, values):
+            if stage not in d.index or col not in d.columns:
+                report(f"{stage} {col}", False, "not in CSV")
+                continue
+            got = d.loc[stage, col]
+            report(f"{stage} {col}", abs(got - want) < 0.0006,
+                   f"{got:.3f} vs {want}")
+
+
+# --------------------------------------------------------------- Table 13
+def table13():
+    print("\nTable 13 — runtime")
     d = load("GAP_runtime_BRISC.csv")
     if d is None:
         return
@@ -283,15 +314,16 @@ def table12():
 
 if __name__ == "__main__":
     print(f"reading CSVs from: {os.path.abspath(DATA)}")
-    table5()
-    table7()
-    paired("T2_paired_BRISC_ref_SVD-Fusion__multi-scale___1_.csv",
-           "Table 6 — paired, BRISC", TABLE6)
-    paired("T2_paired_VOC_ref_SVD-Fusion__multi-scale___1_.csv",
-           "Table 13 — paired, VOC", TABLE13)
+    table6()
     table8()
+    paired("T2_paired_BRISC_ref_SVD-Fusion__multi-scale___1_.csv",
+           "Table 7 — paired, BRISC", TABLE7)
+    paired("T2_paired_VOC_ref_SVD-Fusion__multi-scale___1_.csv",
+           "Table A.14 — paired, VOC", TABLE_A14)
     table9()
+    table10()
     table12()
+    table13()
 
     print("\n" + "=" * 46)
     print(f"checked {ok_total + bad_total} values: {ok_total} match, {bad_total} mismatch")
