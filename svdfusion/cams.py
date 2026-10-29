@@ -30,6 +30,7 @@ __all__ = [
     "layer_cam",
     "eigen_cam",
     "svd_grad_cam",
+    "pcg_cam",
     "svd1",
     "svd_fusion",
 ]
@@ -160,6 +161,30 @@ def svd_grad_cam(feat: np.ndarray, grad: np.ndarray, n_components: int = 1) -> n
     return _relu_minmax((weights * feat).sum(axis=-1))
 
 
+def pcg_cam(feat: np.ndarray, grad: np.ndarray) -> np.ndarray:
+    """PCG-CAM (Huang et al., 2025), Eqs. 6-10 of the original paper.
+
+    Each channel's gradient is centred over space, the leading eigenvector of
+    the resulting ``HW x HW`` covariance (channels as samples) is found, and the
+    uncentred gradients are projected onto it to give one weight per channel.
+    The absolute value of the weighted sum removes the sign ambiguity of the
+    eigenvector.
+
+    Without the centring step the weights reduce exactly to ``v1`` (see
+    :func:`svd1`), so PCG-CAM lies in the uniform-profile row of the taxonomy.
+    """
+    h, w, c = feat.shape
+    g = grad.reshape(h * w, c).T                      # (C, HW)
+    centred = g - g.mean(axis=1, keepdims=True)       # Eq. 6
+    cov = centred.T @ centred / max(c - 1, 1)         # Eq. 7
+    try:
+        eigvals, eigvecs = np.linalg.eigh(cov)        # Eq. 8
+    except np.linalg.LinAlgError:
+        return np.zeros((h, w), dtype=np.float32)
+    weights = g @ eigvecs[:, np.argmax(eigvals)]      # Eq. 9
+    return _relu_normalise(np.abs((weights * feat).sum(axis=-1)))   # Eq. 10
+
+
 def svd1(feat: np.ndarray, grad: np.ndarray, sign_correct: bool = True) -> np.ndarray:
     """SVD1: channel weighting from the principal right singular vector.
 
@@ -225,5 +250,6 @@ BASELINE_METHODS = {
     "LayerCAM": layer_cam,
     "Eigen-CAM": eigen_cam,
     "SVD-Grad-CAM": svd_grad_cam,
+    "PCG-CAM": pcg_cam,
 }
 """Baseline methods keyed by display name. Each maps ``(feat, grad) -> cam``."""
