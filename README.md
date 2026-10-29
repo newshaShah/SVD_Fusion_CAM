@@ -10,7 +10,7 @@ keeps the low-rank reconstruction as a *spatial weight field*. Maps from
 different resolution levels are then fused, and a cell-coverage criterion
 indicates when a higher-resolution level is needed.
 
-This repository contains the method, the seven baselines it is compared with,
+This repository contains the method, the eight baselines it is compared with,
 and the scripts behind the paper's localisation, faithfulness and sanity-check
 results.
 
@@ -48,7 +48,8 @@ training split (`scripts/select_config.py`).
 ## Installation
 
 ```bash
-# from the root of a clone of this repository
+git clone https://github.com/<user>/svd-fusion-cam.git
+cd svd-fusion-cam
 pip install -r requirements.txt
 pip install -e .
 ```
@@ -104,8 +105,9 @@ are computed on the deepest convolutional layer, `top_conv`.
 Run every command from the repository root. Gradients and maps are computed
 deterministically, so up to floating-point differences between TensorFlow
 versions and hardware, these commands reproduce the reported numbers. The
-sanity check draws random weights, so its values can differ slightly from run to
-run (use `--seed` to fix them).
+sanity check draws random weights; it runs seeds 0-4 by default and reports the
+mean and standard deviation across them, as in the paper (`--seeds` changes the
+set).
 
 ```bash
 # 0. (optional) train the classifiers; only the trained models are needed later
@@ -117,7 +119,7 @@ python -m scripts.train_voc --voc-root data/VOCdevkit/VOC2012 \
 # 1. (optional) configuration search on the BRISC training split (Tables 2 and 5)
 python -m scripts.select_config --config configs/brisc.yaml --per-class 250
 
-# 2. localisation for all nine methods (writes results/raw_*.csv)
+# 2. localisation for all ten methods (writes results/raw_*.csv)
 python -m scripts.evaluate --config configs/brisc.yaml
 python -m scripts.evaluate --config configs/voc.yaml
 
@@ -175,16 +177,19 @@ with `tf.keras.models.clone_model` followed by `set_weights`. For the BRISC mode
 that copy was not identical to the trained model even before any weight was
 randomised, which inflated the correlations. The copy is now made by loading the
 model file a second time, and the script stops if the untouched copy differs
-from the trained model. Table 12 of the paper reports the corrected run.
+from the trained model. Table 12 of the paper reports the corrected run,
+averaged over seeds 0-4. A single unseeded draw can move the correlations of the
+gradient-based methods by more than the differences between them, which is why
+the paper reports the mean and standard deviation.
 
 ---
 
 ## Repository layout
 
 ```
-SVD_Fusion_CAM/
+svd-fusion-cam/
 ├── svdfusion/            core library (no experiment code)
-│   ├── cams.py           SVD-Fusion CAM, SVD1 and the seven baselines
+│   ├── cams.py           SVD-Fusion CAM, SVD1 and the eight baselines
 │   ├── fusion.py         multi-scale fusion and the cell-coverage criterion
 │   ├── metrics.py        EBPG, lift, pointing game, IoU
 │   ├── data.py           BRISC and VOC loaders with aligned masks
