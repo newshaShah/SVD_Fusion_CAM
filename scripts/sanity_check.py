@@ -9,9 +9,15 @@ the model learned.
 
 Lower is better: it means the explanation depends more on the learned weights.
 
+The randomisation is repeated for several seeds (by default 0-4, as in the
+paper) and the table reports the mean and standard deviation across them; a
+single draw can shift the correlations of the gradient-based methods by more
+than the differences between them.
+
 Usage
 -----
     python -m scripts.sanity_check --config configs/brisc.yaml --per-class 20
+    python -m scripts.sanity_check --config configs/brisc.yaml --seeds 0 1 2
 """
 
 from __future__ import annotations
@@ -132,12 +138,11 @@ def _image_ids(config, per_class):
         return [line.strip() for line in fh if line.strip()][:3 * per_class]
 
 
-def run(config: dict, per_class: int, blocks, seed: int | None = None) -> pd.DataFrame:
+def run(config: dict, per_class: int, blocks, seeds=(0, 1, 2, 3, 4)) -> pd.DataFrame:
+    """Per-seed correlations in long format: seed, stage, method, rho."""
     image_size = tuple(config["image_size"])
     layers, deepest = config["layers"], config["deepest_layer"]
     is_brisc = config["dataset"] == "brisc"
-    if seed is not None:
-        tf.keras.utils.set_random_seed(seed)
 
     model = tf.keras.models.load_model(config["model_path"], compile=False)
     needed = list(dict.fromkeys(layers + [deepest]))
@@ -160,38 +165,40 @@ def run(config: dict, per_class: int, blocks, seed: int | None = None) -> pd.Dat
             feats, grads, extractor.layer_names, config, image_size)
         samples[image_id] = sample
 
-    # The randomised copy is made by loading the model file a second time.
-    # tf.keras.models.clone_model + set_weights does not give an identical
-    # copy for this model (top_conv activations differed by up to ~20 before
-    # any weight was touched), which inflated the correlations of every
-    # method. Verify the copy before randomising anything.
-    randomised = tf.keras.models.load_model(config["model_path"], compile=False)
-    _check_identical(extractor, GradientExtractor(randomised, needed), samples)
-
     rows = []
-    for stage_name, stage_layers in build_stages(model, blocks):
-        randomise(randomised, stage_layers)      # cumulative, by design
-        stage_extractor = GradientExtractor(randomised, needed)
-        scores = {}
-        for image_id, sample in samples.items():
-            try:
-                feats, grads = stage_extractor(
-                    sample.model_input, sample.class_index)
-                maps = all_maps(feats, grads, stage_extractor.layer_names,
-                                config, image_size)
-            except Exception:
-                continue
-            for method, cam in maps.items():
-                rho, _ = spearmanr(reference[image_id][method].flatten(),
-                                   cam.flatten())
-                if not np.isnan(rho):
-                    scores.setdefault(method, []).append(abs(rho))
-        row = {"stage": stage_name}
-        row.update({m: float(np.mean(v)) for m, v in scores.items()})
-        rows.append(row)
-        print(f"  done: {stage_name}")
+    for seed in seeds:
+        tf.keras.utils.set_random_seed(seed)
+        # The randomised copy is made by loading the model file a second time.
+        # tf.keras.models.clone_model + set_weights does not give an identical
+        # copy for this model (top_conv activations differed by up to ~20 before
+        # any weight was touched), which inflated the correlations of every
+        # method. Verify the copy before randomising anything.
+        randomised = tf.keras.models.load_model(config["model_path"], compile=False)
+        _check_identical(extractor, GradientExtractor(randomised, needed), samples)
 
-    return pd.DataFrame(rows).set_index("stage")
+        for stage_name, stage_layers in build_stages(model, blocks):
+            randomise(randomised, stage_layers)      # cumulative, by design
+            stage_extractor = GradientExtractor(randomised, needed)
+            scores = {}
+            for image_id, sample in samples.items():
+                try:
+                    feats, grads = stage_extractor(
+                        sample.model_input, sample.class_index)
+                    maps = all_maps(feats, grads, stage_extractor.layer_names,
+                                    config, image_size)
+                except Exception:
+                    continue
+                for method, cam in maps.items():
+                    rho, _ = spearmanr(reference[image_id][method].flatten(),
+                                       cam.flatten())
+                    if not np.isnan(rho):
+                        scores.setdefault(method, []).append(abs(rho))
+            for method, values in scores.items():
+                rows.append({"seed": seed, "stage": stage_name, "method": method,
+                             "rho": float(np.mean(values)), "n": len(values)})
+            print(f"  seed {seed}, done: {stage_name}")
+
+    return pd.DataFrame(rows)
 
 
 def main():
@@ -202,22 +209,31 @@ def main():
     parser.add_argument("--blocks", nargs="*",
                         default=["block7", "block6", "block5", "block4", "block3"],
                         help="convolutional block prefixes, deepest first")
-    parser.add_argument("--seed", type=int, default=None,
-                        help="seed for the random weights; the paper's run "
-                             "was unseeded, so values can differ in the "
-                             "second or third decimal")
+    parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4],
+                        help="seeds for the random weights (paper uses 0-4)")
     parser.add_argument("--out-dir", default="results")
     args = parser.parse_args()
 
     with open(args.config) as fh:
         config = yaml.safe_load(fh)
 
-    table = run(config, args.per_class, args.blocks, args.seed)
+    raw = run(config, args.per_class, args.blocks, args.seeds)
     os.makedirs(args.out_dir, exist_ok=True)
-    out = f"{args.out_dir}/sanity_{config['dataset']}.csv"
-    table.round(4).to_csv(out)
-    print("\n|Spearman| against the trained model's map (lower is better)\n")
-    print(table.round(3).to_string())
+    tag = config["dataset"]
+    raw.to_csv(f"{args.out_dir}/sanity_{tag}_seeds.csv", index=False)
+    order = list(dict.fromkeys(raw["stage"]))
+    mean = raw.pivot_table(index="stage", columns="method", values="rho",
+                           aggfunc="mean").reindex(order)
+    std = raw.pivot_table(index="stage", columns="method", values="rho",
+                          aggfunc="std").reindex(order)
+    out = f"{args.out_dir}/sanity_{tag}.csv"
+    mean.round(4).to_csv(out)
+    std.round(4).to_csv(f"{args.out_dir}/sanity_{tag}_std.csv")
+    print(f"\n|Spearman| against the trained model's map (lower is better), "
+          f"mean over seeds {args.seeds}\n")
+    print(mean.round(3).to_string())
+    print("\nstandard deviation across seeds\n")
+    print(std.round(3).to_string())
     print(f"\nwritten to {out}")
 
 

@@ -4,7 +4,8 @@ Loads no model and computes nothing new: it only compares the values written
 in the paper's tables with the raw CSV files of the original runs. It covers
 PG and IoU of Table 6, Table 8 (selected rows), the paired tables (Table 7 and
 Table A.14), the per-class table (Table 9), the size table (Table 10), the
-corrected sanity table (Table 12) and the runtime table (Table 13).
+corrected sanity table (Table 12), the runtime table (Table 13) and, when the
+PCG-CAM result files are present, the PCG-CAM rows of Tables 6 and 8.
 
 Usage
 -----
@@ -264,21 +265,23 @@ def table10():
 
 # --------------------------------------------------------------- Table 12
 def table12():
-    print("\nTable 12 — sanity check (corrected run)")
-    path = os.path.join(DATA, "final_sanity_check_FIXED.csv")
+    print("\nTable 12 — sanity check (corrected run, mean over seeds 0-4)")
+    path = os.path.join(DATA, "sanity_seeds_brisc.csv")          # Colab run
     if not os.path.exists(path):
-        path = os.path.join(DATA, "sanity_brisc.csv")      # scripts/sanity_check.py
+        path = os.path.join(DATA, "sanity_brisc_seeds.csv")      # scripts/sanity_check.py
     if not os.path.exists(path):
-        print(f"  [skip] no sanity CSV in {DATA}")
+        print(f"  [skip] no per-seed sanity CSV in {DATA}")
         return
-    d = pd.read_csv(path, index_col=0).rename(columns={"EigenCAM": "Eigen-CAM"})
+    raw = pd.read_csv(path)
+    raw["method"] = raw["method"].replace({"EigenCAM": "Eigen-CAM"})
+    d = raw.pivot_table(index="stage", columns="method", values="rho", aggfunc="mean")
     columns = ["SVD-Fusion CAM (proposed)", "SVD-Fusion CAM (single layer)",
                "Grad-CAM", "Grad-CAM++", "HiResCAM", "LayerCAM", "Eigen-CAM",
-               "SVD-Grad-CAM", "XGrad-CAM"]
+               "SVD-Grad-CAM", "XGrad-CAM", "PCG-CAM"]
     paper = {
-        "head":   [0.347, 0.384, 0.412, 0.693, 0.320, 0.926, 1.000, 0.409, 0.509],
-        "block6": [0.313, 0.347, 0.334, 0.443, 0.348, 0.684, 0.769, 0.338, 0.294],
-        "block3": [0.337, 0.330, 0.319, 0.452, 0.338, 0.704, 0.784, 0.320, 0.300],
+        "head":   [0.280, 0.307, 0.330, 0.683, 0.265, 0.920, 1.000, 0.331, 0.487, 0.244],
+        "block6": [0.264, 0.348, 0.278, 0.355, 0.276, 0.553, 0.539, 0.260, 0.275, 0.315],
+        "block3": [0.362, 0.347, 0.302, 0.364, 0.304, 0.575, 0.387, 0.302, 0.285, 0.309],
     }
     for stage, values in paper.items():
         for col, want in zip(columns, values):
@@ -288,6 +291,25 @@ def table12():
             got = d.loc[stage, col]
             report(f"{stage} {col}", abs(got - want) < 0.0006,
                    f"{got:.3f} vs {want}")
+
+
+# --------------------------------------------------------------- PCG-CAM
+def table_pcg():
+    print("\nTables 6 and 8 — PCG-CAM rows")
+    paper = {"pcg_cam_check.csv": ("BRISC", 1.64, 24.56, 12.77),
+             "pcg_cam_check_voc.csv": ("VOC", 1.42, 86.30, 31.36)}
+    for fname, (ds, lift, pg, iou) in paper.items():
+        path = os.path.join(DATA, fname)
+        if not os.path.exists(path):
+            print(f"  [skip] {fname} not in {DATA}")
+            continue
+        d = pd.read_csv(path)
+        d = d[d["method"] == "PCG-CAM"]
+        got = (d["lift"].median(), 100 * d["pg"].mean(), 100 * d["iou"].mean())
+        good = (abs(got[0] - lift) < 0.006 and abs(got[1] - pg) < 0.006
+                and abs(got[2] - iou) < 0.006)
+        report(f"{ds} PCG-CAM", good,
+               f"lift {got[0]:.2f} vs {lift} | PG {got[1]:.2f} vs {pg} | IoU {got[2]:.2f} vs {iou}")
 
 
 # --------------------------------------------------------------- Table 13
@@ -324,6 +346,7 @@ if __name__ == "__main__":
     table10()
     table12()
     table13()
+    table_pcg()
 
     print("\n" + "=" * 46)
     print(f"checked {ok_total + bad_total} values: {ok_total} match, {bad_total} mismatch")

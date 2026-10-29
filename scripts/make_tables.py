@@ -25,6 +25,7 @@ METHOD_ORDER = [
     "LayerCAM",
     "Grad-CAM",
     "SVD-Grad-CAM",
+    "PCG-CAM",
     "XGrad-CAM",
     "Eigen-CAM",
 ]

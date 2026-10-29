@@ -1,6 +1,6 @@
 """Evaluate all CAM methods on a dataset and write per-image results.
 
-Runs the seven baselines and the two proposed variants on every image of the
+Runs the eight baselines and the two proposed variants on every image of the
 configured dataset, computing localisation metrics for each, and writes a tidy
 CSV with one row per (image, method). Because CAM evaluation is deterministic,
 re-running reproduces the numbers in the paper's tables exactly.
