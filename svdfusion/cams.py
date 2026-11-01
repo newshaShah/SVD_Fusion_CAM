@@ -2,7 +2,7 @@
 
 This module implements the proposed SVD-Fusion CAM together with the baseline
 methods used in the paper. Every function takes the feature map and the gradient
-of the target-class logit for a single convolutional layer and returns a 2-D
+of the target-class score for a single convolutional layer and returns a 2-D
 saliency map, normalised to ``[0, 1]``.
 
 Shapes
@@ -10,7 +10,7 @@ Shapes
 feat : np.ndarray, shape (H, W, C)
     Activations of the layer.
 grad : np.ndarray, shape (H, W, C)
-    Gradient of the target logit with respect to ``feat``.
+    Gradient of the target-class score (model output) with respect to ``feat``.
 
 The proposed method (:func:`svd_fusion`) differs from all baselines in that it
 keeps the low-rank reconstruction of the joint spatial-channel gradient matrix as
@@ -120,9 +120,10 @@ def layer_cam(feat: np.ndarray, grad: np.ndarray) -> np.ndarray:
 def eigen_cam(feat: np.ndarray, grad: np.ndarray | None = None) -> np.ndarray:
     """Eigen-CAM (Muhammad and Yeasin, 2020).
 
-    Projects the *activations* onto their first principal component. Independent
-    of the target class, hence class-agnostic; ``grad`` is accepted only for a
-    uniform call signature and is ignored.
+    Projects the *activations* onto the first principal component of the
+    mean-centred activations. As in the original formulation, no sign correction
+    is applied. Independent of the target class, hence class-agnostic; ``grad``
+    is accepted only for a uniform call signature and is ignored.
     """
     h, w, c = feat.shape
     flat = feat.reshape(h * w, c)
@@ -138,12 +139,15 @@ def eigen_cam(feat: np.ndarray, grad: np.ndarray | None = None) -> np.ndarray:
 # Decomposition-based methods
 # --------------------------------------------------------------------------- #
 def svd_grad_cam(feat: np.ndarray, grad: np.ndarray, n_components: int = 1) -> np.ndarray:
-    """SVD-Grad-CAM (Thota and Vishwakarma, 2024).
+    """SVD-Grad-CAM (Thota, Nagaraju and Korra, ICPR 2024).
 
     Applies an SVD to each channel's 2-D gradient map separately, reconstructs a
     denoised version, and then averages it into a scalar channel weight. The
     decomposition acts as a denoiser only; the spatial structure it recovers is
     discarded by the final averaging. Contrast with :func:`svd_fusion`.
+
+    The paper uses ``n_components=1``. The authors' public notebook keeps two
+    components.
     """
     _, _, channels = grad.shape
     weights = np.zeros(channels, dtype=np.float64)

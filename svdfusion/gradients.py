@@ -1,7 +1,8 @@
 """Gradient extraction for gradient-based CAM methods.
 
 Wraps a Keras model so that, for a chosen set of layers, one call returns the
-activations and the gradient of the target-class logit with respect to each. A
+activations and the gradient of the target-class score (the model output: softmax or sigmoid
+probability) with respect to each. A
 single forward and backward pass is shared across all layers, matching the cost
 model described in the paper (Section 3.5).
 """
@@ -15,7 +16,7 @@ __all__ = ["GradientExtractor"]
 
 
 class GradientExtractor:
-    """Return activations and target-logit gradients for selected layers.
+    """Return activations and target-score gradients for selected layers.
 
     Parameters
     ----------
@@ -47,7 +48,7 @@ class GradientExtractor:
         feats : list of np.ndarray
             Activations, one array of shape ``(H, W, C)`` per requested layer.
         grads : list of np.ndarray
-            Gradients of the target logit, same shapes as ``feats``. Layers whose
+            Gradients of the target-class score, same shapes as ``feats``. Layers whose
             gradient is None (disconnected) are returned as zeros.
         """
         x = tf.convert_to_tensor(model_input)
