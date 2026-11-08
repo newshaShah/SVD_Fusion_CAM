@@ -48,8 +48,8 @@ training split (`scripts/select_config.py`).
 ## Installation
 
 ```bash
-git clone https://github.com/<user>/svd-fusion-cam.git
-cd svd-fusion-cam
+git clone https://github.com/newshaShah/SVD_Fusion_CAM.git
+cd SVD_Fusion_CAM
 pip install -r requirements.txt
 pip install -e .
 ```
